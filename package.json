@@ -1,0 +1,38 @@
+{
+  "name": "ngs-benchmark-viewer",
+  "version": "1.0.0",
+  "description": "Interactive NGS benchmark data viewer with shapefile integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "fetch-data": "node scripts/fetchNGSData.js",
+    "dev": "node server.js",
+    "start-win": "\"C:/Program Files/nodejs/node.exe\" server.js",
+    "fetch-data-win": "\"C:/Program Files/nodejs/node.exe\" scripts/fetchNGSData.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "yauzl": "^2.10.0",
+    "adm-zip": "^0.5.10",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "fs-extra": "^11.1.1",
+    "path": "^0.12.7",
+    "node-cron": "^3.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "ngs",
+    "geodesy",
+    "mapping",
+    "gis",
+    "leaflet",
+    "benchmarks"
+  ],
+  "author": "NGS Project",
+  "license": "MIT"
+}

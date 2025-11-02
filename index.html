@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NGS Benchmark Data Viewer - Interactive Geodetic Survey Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>NGS Benchmark Data Viewer</h1>
+        <div class="subtitle">Interactive National Geodetic Survey Benchmark Explorer</div>
+    </div>
+    <!-- Search and Control Panel -->
+    <div class="search-panel">
+        <div class="search-container">
+            <h3>Search for Nearest Benchmark</h3>
+            <div class="search-box">
+                <input type="text" id="addressInput" placeholder="Enter an address (e.g., 1600 Pennsylvania Ave, Washington DC)" />
+                <button id="searchButton">Search</button>
+            </div>
+            <div id="searchResults" class="search-results hidden"></div>
+        </div>
+
+        <div class="filter-container">
+            <h3>Filter Benchmarks</h3>
+            <div class="filter-controls">
+                <label for="benchmarkType">Benchmark Type:</label>
+                <select id="benchmarkType">
+                    <option value="all">All Types</option>
+                    <option value="horizontal">Horizontal Control</option>
+                    <option value="vertical">Vertical Control</option>
+                    <option value="gravity">Gravity Station</option>
+                    <option value="cors">CORS Station</option>
+                    <option value="triangulation">Triangulation Station</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="data-status">
+            <h3>Data Status</h3>
+            <div id="dataLoadingStatus">Loading NGS data...</div>
+            <div id="benchmarkCount" class="hidden">Benchmarks loaded: <span id="count">0</span></div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <div class="map-controls">
+            <button id="centerUSButton" class="control-button">Center on US</button>
+            <button id="toggleLayersButton" class="control-button">Toggle Layers</button>
+            <div class="zoom-info">
+                Zoom Level: <span id="zoomLevel">4</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <!-- NGS Benchmark Legend -->
+    <div class="legend">
+        <h3>NGS Benchmark Types</h3>
+        <div class="legend-item">
+            <div class="legend-marker horizontal-marker"></div>
+            <span>Horizontal Control</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker vertical-marker"></div>
+            <span>Vertical Control</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker gravity-marker"></div>
+            <span>Gravity Station</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker cors-marker"></div>
+            <span>CORS Station</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker triangulation-marker"></div>
+            <span>Triangulation Station</span>
+        </div>
+        <div class="legend-note">
+            Click markers for detailed information<br>
+            Use filters to show specific types<br>
+            Search for nearest benchmark to address
+        </div>
+    </div>
+    
+    <div class="info-panel">
+        <h2>NGS Benchmark Data Explorer</h2>
+        <p>This interactive map displays National Geodetic Survey (NGS) benchmark data across the United States. Each marker represents a geodetic control point with precise coordinates used for surveying and mapping applications.</p>
+        
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li><strong>Search:</strong> Find the nearest benchmark to any address</li>
+            <li><strong>Filter:</strong> Display specific types of geodetic control points</li>
+            <li><strong>Explore:</strong> Click markers to view detailed datasheet information</li>
+            <li><strong>Navigate:</strong> Pan and zoom to explore different regions</li>
+        </ul>
+        
+        <p><strong>Data Types:</strong> Horizontal control points provide latitude/longitude coordinates, vertical control points provide elevation data, CORS stations offer real-time GPS corrections, and gravity stations support geophysical studies.</p>
+    </div>
+    
+    <div class="footer">
+        <strong>Data Source:</strong> National Geodetic Survey (NGS) - NOAA's National Ocean Service<br>
+        <em>Benchmark data and shapefiles from NGS archives</em> | 
+        <a href="https://geodesy.noaa.gov/" target="_blank">Visit NGS Website</a>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="js/main.js"></script>
