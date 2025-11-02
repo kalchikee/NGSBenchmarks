@@ -1,219 +1,264 @@
-# NGS Benchmark Data Viewer
+# css-select [![NPM version](http://img.shields.io/npm/v/css-select.svg)](https://npmjs.org/package/css-select) [![Build Status](https://travis-ci.com/fb55/css-select.svg?branch=master)](http://travis-ci.com/fb55/css-select) [![Downloads](https://img.shields.io/npm/dm/css-select.svg)](https://npmjs.org/package/css-select) [![Coverage](https://coveralls.io/repos/fb55/css-select/badge.svg?branch=master)](https://coveralls.io/r/fb55/css-select)
 
-An interactive web application for exploring National Geodetic Survey (NGS) benchmark data with integrated shapefile visualization and address-based search capabilities.
+A CSS selector compiler and engine
 
-## Features
+## What?
 
-### 🗺️ Interactive Mapping
-- **Leaflet-based map** with multiple base layers (OpenStreetMap, Topographic, Satellite)
-- **Pan and zoom** functionality for exploring different regions
-- **Responsive design** that works on desktop and mobile devices
+As a **compiler**, css-select turns CSS selectors into functions that tests if
+elements match them.
 
-### 📍 NGS Benchmark Integration
-- **Automatic data fetching** from NGS datasheet archives
-- **Shapefile loading** and visualization from NGS archives
-- **Multiple benchmark types** with distinct symbology:
-  - Horizontal Control Points (Red circles)
-  - Vertical Control Points (Blue triangles)
-  - Gravity Stations (Purple diamonds)
-  - CORS Stations (Orange squares)
-  - Triangulation Stations (Green triangles)
+As an **engine**, css-select looks through a DOM tree, searching for elements.
+Elements are tested "from the top", similar to how browsers execute CSS
+selectors.
 
-### 🔍 Advanced Search & Filtering
-- **Address search** to find nearest benchmarks to any location
-- **Type filtering** to display specific benchmark categories
-- **Interactive popups** with detailed benchmark information
-- **Datasheet integration** for accessing detailed survey data
+In its default configuration, css-select queries the DOM structure of the
+[`domhandler`](https://github.com/fb55/domhandler) module (also known as
+htmlparser2 DOM). To query alternative DOM structures, see [`Options`](#options)
+below.
 
-### 📊 Data Management
-- **Automated downloading** and extraction of NGS archives
-- **Real-time inventory** of available data
-- **Background processing** of large datasets
-- **Error handling** and status reporting
+**Features:**
 
-## Quick Start
+-   🔬 Full implementation of CSS3 selectors, as well as most CSS4 selectors
+-   🧪 Partial implementation of jQuery/Sizzle extensions (see
+    [cheerio-select](https://github.com/cheeriojs/cheerio-select) for the
+    remaining selectors)
+-   🧑‍🔬 High test coverage, including the full test suites from
+    [`Sizzle`](https://github.com/jquery/sizzle),
+    [`Qwery`](https://github.com/ded/qwery) and
+    [`NWMatcher`](https://github.com/dperini/nwmatcher/) and .
+-   🥼 Reliably great performance
 
-### Prerequisites
-- **Node.js** (version 14 or higher)
-- **npm** (comes with Node.js)
+## Why?
 
-### Installation
+Most CSS engines written in JavaScript execute selectors left-to-right. That
+means thet execute every component of the selector in order, from left to right.
+As an example: For the selector `a b`, these engines will first query for `a`
+elements, then search these for `b` elements. (That's the approach of eg.
+[`Sizzle`](https://github.com/jquery/sizzle),
+[`Qwery`](https://github.com/ded/qwery) and
+[`NWMatcher`](https://github.com/dperini/nwmatcher/).)
 
-1. **Clone or download** this project to your local machine
+While this works, it has some downsides: Children of `a`s will be checked
+multiple times; first, to check if they are also `a`s, then, for every superior
+`a` once, if they are `b`s. Using
+[Big O notation](http://en.wikipedia.org/wiki/Big_O_notation), that would be
+`O(n^(k+1))`, where `k` is the number of descendant selectors (that's the space
+in the example above).
 
-2. **Navigate to the project directory:**
-   ```bash
-   cd "NGS Project"
-   ```
+The far more efficient approach is to first look for `b` elements, then check if
+they have superior `a` elements: Using big O notation again, that would be
+`O(n)`. That's called right-to-left execution.
 
-3. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+And that's what css-select does – and why it's quite performant.
 
-4. **Start the server:**
-   ```bash
-   npm start
-   ```
+## How does it work?
 
-5. **Open your browser** and go to:
-   ```
-   http://localhost:3000
-   ```
+By building a stack of functions.
 
-### Fetching NGS Data
+_Wait, what?_
 
-To download actual NGS data (optional - the app works with sample data):
+Okay, so let's suppose we want to compile the selector `a b`, for right-to-left
+execution. We start by _parsing_ the selector. This turns the selector into an
+array of the building blocks. That's what the
+[`css-what`](https://github.com/fb55/css-what) module is for, if you want to
+have a look.
 
-```bash
-npm run fetch-data
+Anyway, after parsing, we end up with an array like this one:
+
+```js
+[
+    { type: "tag", name: "a" },
+    { type: "descendant" },
+    { type: "tag", name: "b" },
+];
 ```
 
-This will:
-- Download datasheet archives from NGS
-- Download and extract shapefile data
-- Create a local inventory of available data
+(Actually, this array is wrapped in another array, but that's another story,
+involving commas in selectors.)
 
-## Usage Guide
+Now that we know the meaning of every part of the selector, we can compile it.
+That is where things become interesting.
 
-### Exploring Benchmarks
-1. **View the map** - Sample benchmarks are loaded automatically
-2. **Click markers** to see detailed information
-3. **Use the legend** to understand different benchmark types
+The basic idea is to turn every part of the selector into a function, which
+takes an element as its only argument. The function checks whether a passed
+element matches its part of the selector: If it does, the element is passed to
+the next function representing the next part of the selector. That function does
+the same. If an element is accepted by all parts of the selector, it _matches_
+the selector and double rainbow ALL THE WAY.
 
-### Searching for Nearest Benchmark
-1. **Enter an address** in the search box (e.g., "1600 Pennsylvania Ave, Washington DC")
-2. **Click Search** or press Enter
-3. **View results** showing the nearest benchmark with distance
-4. **Click "Show on Map"** to zoom to the benchmark location
+As said before, we want to do right-to-left execution with all the big O
+improvements. That means elements are passed from the rightmost part of the
+selector (`b` in our example) to the leftmost (~~which would be `c`~~ of course
+`a`).
 
-### Filtering by Type
-1. **Use the dropdown menu** to select a specific benchmark type
-2. **Choose from:**
-   - All Types (default)
-   - Horizontal Control
-   - Vertical Control
-   - Gravity Station
-   - CORS Station
-   - Triangulation Station
+For traversals, such as the _descendant_ operating the space between `a` and
+`b`, we walk up the DOM tree, starting from the element passed as argument.
 
-### Map Controls
-- **Center on US** - Reset map view to continental United States
-- **Toggle Layers** - Show/hide shapefile overlays (when available)
-- **Zoom Level** - Current zoom level indicator
+_//TODO: More in-depth description. Implementation details. Build a spaceship._
 
-## API Endpoints
+## API
 
-The server provides several API endpoints for data access:
-
-- `GET /api/health` - Server health check
-- `GET /api/inventory` - Data inventory status
-- `GET /api/shapefiles` - Available shapefile data
-- `GET /api/datasheets` - Available datasheet files
-- `POST /api/fetch-data` - Trigger data download
-
-## File Structure
-
-```
-NGS Project/
-├── index.html              # Main HTML file
-├── server.js              # Express.js server
-├── package.json           # Node.js dependencies
-├── css/
-│   └── style.css         # Application styles
-├── js/
-│   └── main.js           # Main JavaScript application
-├── scripts/
-│   └── fetchNGSData.js   # NGS data fetching script
-├── data/                 # Downloaded and processed data
-│   ├── datasheets/      # NGS datasheet files
-│   ├── shapefiles/      # NGS shapefile archives
-│   └── processed/       # Processed data and inventory
-└── lib/
-    └── leaflet/         # Leaflet mapping library
+```js
+const CSSselect = require("css-select");
 ```
 
-## Data Sources
+**Note:** css-select throws errors when invalid selectors are passed to it. This
+is done to aid with writing css selectors, but can be unexpected when processing
+arbitrary strings.
 
-This application fetches data from official NGS sources:
+#### `CSSselect.selectAll(query, elems, options)`
 
-- **Datasheets:** https://geodesy.noaa.gov/pub/DS_ARCHIVE/DataSheets/
-- **Shapefiles:** https://www.ngs.noaa.gov/cgi-bin/sf_archive.prl
+Queries `elems`, returns an array containing all matches.
 
-## Technology Stack
+-   `query` can be either a CSS selector or a function.
+-   `elems` can be either an array of elements, or a single element. If it is an
+    element, its children will be queried.
+-   `options` is described below.
 
-- **Frontend:** HTML5, CSS3, JavaScript (ES6+)
-- **Mapping:** Leaflet.js with multiple tile providers
-- **Backend:** Node.js with Express.js
-- **Data Processing:** Custom scripts for NGS data integration
-- **Geocoding:** OpenStreetMap Nominatim service
+Aliases: `default` export, `CSSselect.iterate(query, elems)`.
 
-## Browser Compatibility
+#### `CSSselect.compile(query, options)`
 
-- Chrome (recommended)
-- Firefox
-- Safari
-- Edge
+Compiles the query, returns a function.
 
-## Troubleshooting
+#### `CSSselect.is(elem, query, options)`
 
-### Data Not Loading
-1. Check your internet connection
-2. Run `npm run fetch-data` to download data
-3. Check console for error messages
+Tests whether or not an element is matched by `query`. `query` can be either a
+CSS selector or a function.
 
-### Map Not Displaying
-1. Ensure JavaScript is enabled
-2. Check browser console for errors
-3. Verify port 3000 is not in use
+#### `CSSselect.selectOne(query, elems, options)`
 
-### Search Not Working
-1. Verify address format (include city, state)
-2. Check internet connection for geocoding service
-3. Try a well-known address as a test
+Arguments are the same as for `CSSselect.selectAll(query, elems)`. Only returns
+the first match, or `null` if there was no match.
 
-## Development
+### Options
 
-### Adding New Features
-1. Modify `js/main.js` for frontend functionality
-2. Update `server.js` for backend API changes
-3. Extend `css/style.css` for styling updates
+All options are optional.
 
-### Data Processing
-The `scripts/fetchNGSData.js` file handles:
-- Scraping NGS archive pages
-- Downloading zip files
-- Extracting and organizing data
-- Creating inventory files
+-   `xmlMode`: When enabled, tag names will be case-sensitive. Default: `false`.
+-   `rootFunc`: The last function in the stack, will be called with the last
+    element that's looked at.
+-   `adapter`: The adapter to use when interacting with the backing DOM
+    structure. By default it uses the `domutils` module.
+-   `context`: The context of the current query. Used to limit the scope of
+    searches. Can be matched directly using the `:scope` pseudo-class.
+-   `relativeSelector`: By default, selectors are relative to the `context`,
+    which means that no parent elements of the context will be matched. (Eg.
+    `a b c` with context `b` will never give any results.) If `relativeSelector`
+    is set to `false`, selectors won't be
+    [absolutized](http://www.w3.org/TR/selectors4/#absolutizing) and selectors
+    can test for parent elements outside of the `context`.
+-   `cacheResults`: Allow css-select to cache results for some selectors,
+    sometimes greatly improving querying performance. Disable this if your
+    document can change in between queries with the same compiled selector.
+    Default: `true`.
+-   `pseudos`: A map of pseudo-class names to functions or strings.
 
-### Custom Benchmark Types
-To add new benchmark types, update the `benchmarkTypes` object in `main.js` with:
-- Color scheme
-- Icon representation  
-- Size parameters
+#### Custom Adapters
 
-## License
+A custom adapter must match the interface described
+[here](https://github.com/fb55/css-select/blob/1aa44bdd64aaf2ebdfd7f338e2e76bed36521957/src/types.ts#L6-L96).
 
-This project is for educational and research purposes. NGS data is provided by NOAA's National Ocean Service and is in the public domain.
+You may want to have a look at [`domutils`](https://github.com/fb55/domutils) to
+see the default implementation, or at
+[`css-select-browser-adapter`](https://github.com/nrkn/css-select-browser-adapter/blob/master/index.js)
+for an implementation backed by the DOM.
 
-## Contributing
+## Supported selectors
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+_As defined by CSS 4 and / or jQuery._
 
-## Support
-
-For issues or questions:
-1. Check the console for error messages
-2. Verify all dependencies are installed
-3. Ensure Node.js version compatibility
-4. Check network connectivity for data fetching
+-   [Selector lists](https://developer.mozilla.org/en-US/docs/Web/CSS/Selector_list)
+    (`,`)
+-   [Universal](https://developer.mozilla.org/en-US/docs/Web/CSS/Universal_selectors)
+    (`*`)
+-   [Type](https://developer.mozilla.org/en-US/docs/Web/CSS/Type_selectors)
+    (`<tagname>`)
+-   [Descendant](https://developer.mozilla.org/en-US/docs/Web/CSS/Descendant_combinator)
+    (` `)
+-   [Child](https://developer.mozilla.org/en-US/docs/Web/CSS/Child_combinator)
+    (`>`)
+-   Parent (`<`)
+-   [Adjacent sibling](https://developer.mozilla.org/en-US/docs/Web/CSS/Adjacent_sibling_combinator)
+    (`+`)
+-   [General sibling](https://developer.mozilla.org/en-US/docs/Web/CSS/General_sibling_combinator)
+    (`~`)
+-   [Attribute](https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors)
+    (`[attr=foo]`), with supported comparisons:
+    -   `[attr]` (existential)
+    -   `=`
+    -   `~=`
+    -   `|=`
+    -   `*=`
+    -   `^=`
+    -   `$=`
+    -   `!=`
+    -   `i` and `s` can be added after the comparison to make the comparison
+        case-insensitive or case-sensitive (eg. `[attr=foo i]`). If neither is
+        supplied, css-select will follow the HTML spec's
+        [case-sensitivity rules](https://html.spec.whatwg.org/multipage/semantics-other.html#case-sensitivity-of-selectors).
+-   Pseudos:
+    -   [`:not`](https://developer.mozilla.org/en-US/docs/Web/CSS/:not)
+    -   [`:contains`](https://api.jquery.com/contains-selector)
+    -   `:icontains` (case-insensitive version of `:contains`)
+    -   [`:has`](https://developer.mozilla.org/en-US/docs/Web/CSS/:has)
+    -   [`:root`](https://developer.mozilla.org/en-US/docs/Web/CSS/:root)
+    -   [`:empty`](https://developer.mozilla.org/en-US/docs/Web/CSS/:empty)
+    -   [`:parent`](https://api.jquery.com/parent-selector)
+    -   [`:first-child`](https://developer.mozilla.org/en-US/docs/Web/CSS/:first-child),
+        [`:last-child`](https://developer.mozilla.org/en-US/docs/Web/CSS/:last-child),
+        [`:first-of-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/:first-of-type),
+        [`:last-of-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/:last-of-type)
+    -   [`:only-of-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/:only-of-type),
+        [`:only-child`](https://developer.mozilla.org/en-US/docs/Web/CSS/:only-child)
+    -   [`:nth-child`](https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-child),
+        [`:nth-last-child`](https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-last-child),
+        [`:nth-of-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-of-type),
+        [`:nth-last-of-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-last-of-type),
+    -   [`:link`](https://developer.mozilla.org/en-US/docs/Web/CSS/:link),
+        [`:any-link`](https://developer.mozilla.org/en-US/docs/Web/CSS/:any-link)
+    -   [`:visited`](https://developer.mozilla.org/en-US/docs/Web/CSS/:visited),
+        [`:hover`](https://developer.mozilla.org/en-US/docs/Web/CSS/:hover),
+        [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/:active)
+        (these depend on optional `Adapter` methods, so these will only match
+        elements if implemented in `Adapter`)
+    -   [`:selected`](https://api.jquery.com/selected-selector),
+        [`:checked`](https://developer.mozilla.org/en-US/docs/Web/CSS/:checked)
+    -   [`:enabled`](https://developer.mozilla.org/en-US/docs/Web/CSS/:enabled),
+        [`:disabled`](https://developer.mozilla.org/en-US/docs/Web/CSS/:disabled)
+    -   [`:required`](https://developer.mozilla.org/en-US/docs/Web/CSS/:required),
+        [`:optional`](https://developer.mozilla.org/en-US/docs/Web/CSS/:optional)
+    -   [`:header`](https://api.jquery.com/header-selector),
+        [`:button`](https://api.jquery.com/button-selector),
+        [`:input`](https://api.jquery.com/input-selector),
+        [`:text`](https://api.jquery.com/text-selector),
+        [`:checkbox`](https://api.jquery.com/checkbox-selector),
+        [`:file`](https://api.jquery.com/file-selector),
+        [`:password`](https://api.jquery.com/password-selector),
+        [`:reset`](https://api.jquery.com/reset-selector),
+        [`:radio`](https://api.jquery.com/radio-selector) etc.
+    -   [`:is`](https://developer.mozilla.org/en-US/docs/Web/CSS/:is), plus its
+        legacy alias `:matches`
+    -   [`:scope`](https://developer.mozilla.org/en-US/docs/Web/CSS/:scope)
+        (uses the context from the passed options)
 
 ---
 
-**Built for exploring America's geodetic infrastructure** 🇺🇸
+License: BSD-2-Clause
 
-*This application provides an interactive way to explore the National Geodetic Survey's benchmark network, helping users understand the precise coordinate system that underlies all mapping and surveying in the United States.*
+## Security contact information
+
+To report a security vulnerability, please use the
+[Tidelift security contact](https://tidelift.com/security). Tidelift will
+coordinate the fix and disclosure.
+
+## `css-select` for enterprise
+
+Available as part of the Tidelift Subscription
+
+The maintainers of `css-select` and thousands of other packages are working with
+Tidelift to deliver commercial support and maintenance for the open source
+dependencies you use to build your applications. Save time, reduce risk, and
+improve code health, while paying the maintainers of the exact dependencies you
+use.
+[Learn more.](https://tidelift.com/subscription/pkg/npm-css-select?utm_source=npm-css-select&utm_medium=referral&utm_campaign=enterprise&utm_term=repo)
