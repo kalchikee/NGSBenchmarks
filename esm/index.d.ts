@@ -1,104 +1,50 @@
+import type { CompiledQuery, Options, Query, Adapter } from "./types.js";
+export type { Options };
 /**
- * @file Batteries-included version of Cheerio. This module includes several
- *   convenience methods for loading documents from various sources.
+ * Compiles the query, returns a function.
  */
-export * from './load-parse.js';
-export { contains, merge } from './static.js';
-export type * from './types.js';
-export type { Cheerio, CheerioAPI, CheerioOptions, HTMLParser2Options, } from './slim.js';
-import { type SnifferOptions } from 'encoding-sniffer';
-import * as undici from 'undici';
-import { Writable } from 'node:stream';
-import type { CheerioAPI } from './load.js';
-import { type CheerioOptions } from './options.js';
+export declare const compile: <Node, ElementNode extends Node>(selector: string | import("css-what").Selector[][], options?: Options<Node, ElementNode> | undefined, context?: Node | Node[] | undefined) => CompiledQuery<Node>;
+export declare const _compileUnsafe: <Node, ElementNode extends Node>(selector: string | import("css-what").Selector[][], options?: Options<Node, ElementNode> | undefined, context?: Node | Node[] | undefined) => CompiledQuery<ElementNode>;
+export declare const _compileToken: <Node, ElementNode extends Node>(selector: import("./types.js").InternalSelector[][], options?: Options<Node, ElementNode> | undefined, context?: Node | Node[] | undefined) => CompiledQuery<ElementNode>;
+export declare function prepareContext<Node, ElementNode extends Node>(elems: Node | Node[], adapter: Adapter<Node, ElementNode>, shouldTestNextSiblings?: boolean): Node[];
 /**
- * Sniffs the encoding of a buffer, then creates a querying function bound to a
- * document created from the buffer.
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elems Elements to query. If it is an element, its children will be queried..
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns All matching elements.
  *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- *
- * const buffer = fs.readFileSync('index.html');
- * const $ = cheerio.loadBuffer(buffer);
- * ```
- *
- * @param buffer - The buffer to sniff the encoding of.
- * @param options - The options to pass to Cheerio.
- * @returns The loaded document.
  */
-export declare function loadBuffer(buffer: Buffer, options?: DecodeStreamOptions): CheerioAPI;
+export declare const selectAll: <Node, ElementNode extends Node>(query: Query<ElementNode>, elements: Node | Node[], options?: Options<Node, ElementNode> | undefined) => ElementNode[];
 /**
- * Creates a stream that parses a sequence of strings into a document.
- *
- * The stream is a `Writable` stream that accepts strings. When the stream is
- * finished, the callback is called with the loaded document.
- *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- * import * as fs from 'fs';
- *
- * const writeStream = cheerio.stringStream({}, (err, $) => {
- *   if (err) {
- *     // Handle error
- *   }
- *
- *   console.log($('h1').text());
- *   // Output: Hello, world!
- * });
- *
- * fs.createReadStream('my-document.html', { encoding: 'utf8' }).pipe(
- *   writeStream,
- * );
- * ```
- *
- * @param options - The options to pass to Cheerio.
- * @param cb - The callback to call when the stream is finished.
- * @returns The writable stream.
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elems Elements to query. If it is an element, its children will be queried..
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns the first match, or null if there was no match.
  */
-export declare function stringStream(options: CheerioOptions, cb: (err: Error | null | undefined, $: CheerioAPI) => void): Writable;
-export interface DecodeStreamOptions extends CheerioOptions {
-    encoding?: SnifferOptions;
-}
+export declare const selectOne: <Node, ElementNode extends Node>(query: Query<ElementNode>, elements: Node | Node[], options?: Options<Node, ElementNode> | undefined) => ElementNode | null;
 /**
- * Parses a stream of buffers into a document.
+ * Tests whether or not an element is matched by query.
  *
- * The stream is a `Writable` stream that accepts buffers. When the stream is
- * finished, the callback is called with the loaded document.
- *
- * @category Loading
- * @param options - The options to pass to Cheerio.
- * @param cb - The callback to call when the stream is finished.
- * @returns The writable stream.
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elem The element to test if it matches the query.
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns
  */
-export declare function decodeStream(options: DecodeStreamOptions, cb: (err: Error | null | undefined, $: CheerioAPI) => void): Writable;
-type UndiciStreamOptions = Omit<undici.Dispatcher.RequestOptions<unknown>, 'path'>;
-export interface CheerioRequestOptions extends DecodeStreamOptions {
-    /** The options passed to `undici`'s `stream` method. */
-    requestOptions?: UndiciStreamOptions;
-}
+export declare function is<Node, ElementNode extends Node>(elem: ElementNode, query: Query<ElementNode>, options?: Options<Node, ElementNode>): boolean;
 /**
- * `fromURL` loads a document from a URL.
- *
- * By default, redirects are allowed and non-2xx responses are rejected.
- *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- *
- * const $ = await cheerio.fromURL('https://example.com');
- * ```
- *
- * @param url - The URL to load the document from.
- * @param options - The options to pass to Cheerio.
- * @returns The loaded document.
+ * Alias for selectAll(query, elems, options).
+ * @see [compile] for supported selector queries.
  */
-export declare function fromURL(url: string | URL, options?: CheerioRequestOptions): Promise<CheerioAPI>;
+export default selectAll;
+/** @deprecated Use the `pseudos` option instead. */
+export { filters, pseudos, aliases } from "./pseudo-selectors/index.js";
 //# sourceMappingURL=index.d.ts.map

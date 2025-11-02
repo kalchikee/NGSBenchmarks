@@ -1,202 +1,115 @@
-/**
- * @file Batteries-included version of Cheerio. This module includes several
- *   convenience methods for loading documents from various sources.
- */
-export * from './load-parse.js';
-export { contains, merge } from './static.js';
-import { adapter as htmlparser2Adapter } from 'parse5-htmlparser2-tree-adapter';
-import * as htmlparser2 from 'htmlparser2';
-import { ParserStream as Parse5Stream } from 'parse5-parser-stream';
-import { decodeBuffer, DecodeStream, } from 'encoding-sniffer';
-import * as undici from 'undici';
-import MIMEType from 'whatwg-mimetype';
-import { Writable, finished } from 'node:stream';
-import { flattenOptions, } from './options.js';
-import { load } from './load-parse.js';
-/**
- * Sniffs the encoding of a buffer, then creates a querying function bound to a
- * document created from the buffer.
- *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- *
- * const buffer = fs.readFileSync('index.html');
- * const $ = cheerio.loadBuffer(buffer);
- * ```
- *
- * @param buffer - The buffer to sniff the encoding of.
- * @param options - The options to pass to Cheerio.
- * @returns The loaded document.
- */
-export function loadBuffer(buffer, options = {}) {
-    const opts = flattenOptions(options);
-    const str = decodeBuffer(buffer, {
-        defaultEncoding: (opts === null || opts === void 0 ? void 0 : opts.xmlMode) ? 'utf8' : 'windows-1252',
-        ...options.encoding,
-    });
-    return load(str, opts);
-}
-function _stringStream(options, cb) {
-    var _a;
-    if (options === null || options === void 0 ? void 0 : options._useHtmlParser2) {
-        const parser = htmlparser2.createDocumentStream((err, document) => cb(err, load(document, options)), options);
-        return new Writable({
-            decodeStrings: false,
-            write(chunk, _encoding, callback) {
-                if (typeof chunk !== 'string') {
-                    throw new TypeError('Expected a string');
-                }
-                parser.write(chunk);
-                callback();
-            },
-            final(callback) {
-                parser.end();
-                callback();
-            },
-        });
-    }
-    options !== null && options !== void 0 ? options : (options = {});
-    (_a = options.treeAdapter) !== null && _a !== void 0 ? _a : (options.treeAdapter = htmlparser2Adapter);
-    if (options.scriptingEnabled !== false) {
-        options.scriptingEnabled = true;
-    }
-    const stream = new Parse5Stream(options);
-    finished(stream, (err) => cb(err, load(stream.document, options)));
-    return stream;
-}
-/**
- * Creates a stream that parses a sequence of strings into a document.
- *
- * The stream is a `Writable` stream that accepts strings. When the stream is
- * finished, the callback is called with the loaded document.
- *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- * import * as fs from 'fs';
- *
- * const writeStream = cheerio.stringStream({}, (err, $) => {
- *   if (err) {
- *     // Handle error
- *   }
- *
- *   console.log($('h1').text());
- *   // Output: Hello, world!
- * });
- *
- * fs.createReadStream('my-document.html', { encoding: 'utf8' }).pipe(
- *   writeStream,
- * );
- * ```
- *
- * @param options - The options to pass to Cheerio.
- * @param cb - The callback to call when the stream is finished.
- * @returns The writable stream.
- */
-export function stringStream(options, cb) {
-    return _stringStream(flattenOptions(options), cb);
-}
-/**
- * Parses a stream of buffers into a document.
- *
- * The stream is a `Writable` stream that accepts buffers. When the stream is
- * finished, the callback is called with the loaded document.
- *
- * @category Loading
- * @param options - The options to pass to Cheerio.
- * @param cb - The callback to call when the stream is finished.
- * @returns The writable stream.
- */
-export function decodeStream(options, cb) {
-    var _a;
-    const { encoding = {}, ...cheerioOptions } = options;
-    const opts = flattenOptions(cheerioOptions);
-    // Set the default encoding to UTF-8 for XML mode
-    (_a = encoding.defaultEncoding) !== null && _a !== void 0 ? _a : (encoding.defaultEncoding = (opts === null || opts === void 0 ? void 0 : opts.xmlMode) ? 'utf8' : 'windows-1252');
-    const decodeStream = new DecodeStream(encoding);
-    const loadStream = _stringStream(opts, cb);
-    decodeStream.pipe(loadStream);
-    return decodeStream;
-}
-const defaultRequestOptions = {
-    method: 'GET',
-    // Set an Accept header
-    headers: {
-        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
+import * as DomUtils from "domutils";
+import boolbase from "boolbase";
+import { compile as compileRaw, compileUnsafe, compileToken, } from "./compile.js";
+import { getNextSiblings } from "./pseudo-selectors/subselects.js";
+const defaultEquals = (a, b) => a === b;
+const defaultOptions = {
+    adapter: DomUtils,
+    equals: defaultEquals,
 };
-/**
- * `fromURL` loads a document from a URL.
- *
- * By default, redirects are allowed and non-2xx responses are rejected.
- *
- * @category Loading
- * @example
- *
- * ```js
- * import * as cheerio from 'cheerio';
- *
- * const $ = await cheerio.fromURL('https://example.com');
- * ```
- *
- * @param url - The URL to load the document from.
- * @param options - The options to pass to Cheerio.
- * @returns The loaded document.
- */
-export async function fromURL(url, options = {}) {
-    const { requestOptions = defaultRequestOptions, encoding = {}, ...cheerioOptions } = options;
-    let undiciStream;
-    // Add headers if none were supplied.
-    const urlObject = typeof url === 'string' ? new URL(url) : url;
-    const streamOptions = {
-        headers: defaultRequestOptions.headers,
-        path: urlObject.pathname + urlObject.search,
-        ...requestOptions,
-    };
-    const promise = new Promise((resolve, reject) => {
-        undiciStream = new undici.Client(urlObject.origin)
-            .compose(undici.interceptors.redirect({ maxRedirections: 5 }))
-            .stream(streamOptions, (res) => {
-            var _a, _b;
-            if (res.statusCode < 200 || res.statusCode >= 300) {
-                throw new undici.errors.ResponseError('Response Error', res.statusCode, {
-                    headers: res.headers,
-                });
-            }
-            const contentTypeHeader = (_a = res.headers['content-type']) !== null && _a !== void 0 ? _a : 'text/html';
-            const mimeType = new MIMEType(Array.isArray(contentTypeHeader)
-                ? contentTypeHeader[0]
-                : contentTypeHeader);
-            if (!mimeType.isHTML() && !mimeType.isXML()) {
-                throw new RangeError(`The content-type "${mimeType.essence}" is neither HTML nor XML.`);
-            }
-            // Forward the charset from the header to the decodeStream.
-            encoding.transportLayerEncodingLabel =
-                mimeType.parameters.get('charset');
-            /*
-             * If we allow redirects, we will have entries in the history.
-             * The last entry will be the final URL.
-             */
-            const history = (_b = res.context) === null || _b === void 0 ? void 0 : _b.history;
-            // Set the `baseURI` to the final URL.
-            const baseURI = history ? history[history.length - 1] : urlObject;
-            const opts = {
-                encoding,
-                // Set XML mode based on the MIME type.
-                xmlMode: mimeType.isXML(),
-                baseURI,
-                ...cheerioOptions,
-            };
-            return decodeStream(opts, (err, $) => (err ? reject(err) : resolve($)));
-        });
-    });
-    // Let's make sure the request is completed before returning the promise.
-    await undiciStream;
-    return promise;
+function convertOptionFormats(options) {
+    var _a, _b, _c, _d;
+    /*
+     * We force one format of options to the other one.
+     */
+    // @ts-expect-error Default options may have incompatible `Node` / `ElementNode`.
+    const opts = options !== null && options !== void 0 ? options : defaultOptions;
+    // @ts-expect-error Same as above.
+    (_a = opts.adapter) !== null && _a !== void 0 ? _a : (opts.adapter = DomUtils);
+    // @ts-expect-error `equals` does not exist on `Options`
+    (_b = opts.equals) !== null && _b !== void 0 ? _b : (opts.equals = (_d = (_c = opts.adapter) === null || _c === void 0 ? void 0 : _c.equals) !== null && _d !== void 0 ? _d : defaultEquals);
+    return opts;
 }
+function wrapCompile(func) {
+    return function addAdapter(selector, options, context) {
+        const opts = convertOptionFormats(options);
+        return func(selector, opts, context);
+    };
+}
+/**
+ * Compiles the query, returns a function.
+ */
+export const compile = wrapCompile(compileRaw);
+export const _compileUnsafe = wrapCompile(compileUnsafe);
+export const _compileToken = wrapCompile(compileToken);
+function getSelectorFunc(searchFunc) {
+    return function select(query, elements, options) {
+        const opts = convertOptionFormats(options);
+        if (typeof query !== "function") {
+            query = compileUnsafe(query, opts, elements);
+        }
+        const filteredElements = prepareContext(elements, opts.adapter, query.shouldTestNextSiblings);
+        return searchFunc(query, filteredElements, opts);
+    };
+}
+export function prepareContext(elems, adapter, shouldTestNextSiblings = false) {
+    /*
+     * Add siblings if the query requires them.
+     * See https://github.com/fb55/css-select/pull/43#issuecomment-225414692
+     */
+    if (shouldTestNextSiblings) {
+        elems = appendNextSiblings(elems, adapter);
+    }
+    return Array.isArray(elems)
+        ? adapter.removeSubsets(elems)
+        : adapter.getChildren(elems);
+}
+function appendNextSiblings(elem, adapter) {
+    // Order matters because jQuery seems to check the children before the siblings
+    const elems = Array.isArray(elem) ? elem.slice(0) : [elem];
+    const elemsLength = elems.length;
+    for (let i = 0; i < elemsLength; i++) {
+        const nextSiblings = getNextSiblings(elems[i], adapter);
+        elems.push(...nextSiblings);
+    }
+    return elems;
+}
+/**
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elems Elements to query. If it is an element, its children will be queried..
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns All matching elements.
+ *
+ */
+export const selectAll = getSelectorFunc((query, elems, options) => query === boolbase.falseFunc || !elems || elems.length === 0
+    ? []
+    : options.adapter.findAll(query, elems));
+/**
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elems Elements to query. If it is an element, its children will be queried..
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns the first match, or null if there was no match.
+ */
+export const selectOne = getSelectorFunc((query, elems, options) => query === boolbase.falseFunc || !elems || elems.length === 0
+    ? null
+    : options.adapter.findOne(query, elems));
+/**
+ * Tests whether or not an element is matched by query.
+ *
+ * @template Node The generic Node type for the DOM adapter being used.
+ * @template ElementNode The Node type for elements for the DOM adapter being used.
+ * @param elem The element to test if it matches the query.
+ * @param query can be either a CSS selector string or a compiled query function.
+ * @param [options] options for querying the document.
+ * @see compile for supported selector queries.
+ * @returns
+ */
+export function is(elem, query, options) {
+    const opts = convertOptionFormats(options);
+    return (typeof query === "function" ? query : compileRaw(query, opts))(elem);
+}
+/**
+ * Alias for selectAll(query, elems, options).
+ * @see [compile] for supported selector queries.
+ */
+export default selectAll;
+// Export filters, pseudos and aliases to allow users to supply their own.
+/** @deprecated Use the `pseudos` option instead. */
+export { filters, pseudos, aliases } from "./pseudo-selectors/index.js";
 //# sourceMappingURL=index.js.map
